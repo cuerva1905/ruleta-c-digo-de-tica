@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruleta del Saber</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Fondo oscuro */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 1rem;
+        }
+
+        .ruleta-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(30, 41, 59, 0.9); /* Fondo oscuro semitransparente */
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        canvas {
+            border-radius: 50%;
+            border: 8px solid #475569; /* Borde oscuro */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: transform 4s cubic-bezier(0.25, 0.1, 0.25, 1);
+            margin-bottom: 2rem;
+            background-image: url('https://placehold.co/600x600/1e293b/a587d1?text=');
+            background-size: cover;
+            background-position: center;
+        }
+
+        .marker {
+            position: absolute;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 20px solid #db2777; /* Rosa fuerte */
+            z-index: 10;
+        }
+
+        .question-box {
+            background-color: #334155; /* Fondo oscuro para el cuadro de pregunta */
+            padding: 1.5rem;
+            border-radius: 1rem;
+            width: 100%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            color: #f8fafc; /* Texto claro */
+        }
+
+        .hidden {
+            display: none;
+        }
+        
+        .answer-button {
+            width: 100%;
+            padding: 0.75rem 1.5rem;
+            margin-top: 0.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            transition-property: background-color, border-color, color, transform;
+            transition-duration: 300ms;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            background-color: #db2777; /* Rosa fuerte */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        .answer-button:hover {
+            background-color: #c026d3; /* Morado-rosa */
+            transform: scale(1.02);
+        }
+
+        .answer-button.correct {
+            background-color: #10b981; /* Verde */
+        }
+        .answer-button.incorrect {
+            background-color: #ef4444; /* Rojo */
+        }
+
+        .title-font {
+            font-family: 'Fredoka', sans-serif;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+            color: #db2777; /* Rosa neón */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="ruleta-container">
+        <h1 class="text-4xl font-bold mb-6 title-font">Ruleta del Saber</h1>
+        <div class="relative">
+            <div class="marker"></div>
+            <canvas id="ruletaCanvas" width="300" height="300"></canvas>
+        </div>
+        
+        <!-- Contenedor para la pregunta y las opciones -->
+        <div id="quiz-section" class="question-box hidden">
+            <p id="question-text" class="text-lg font-semibold mb-4"></p>
+            <div id="answers-container" class="flex flex-col space-y-2"></div>
+        </div>
+
+        <button id="spinButton" class="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
+            Girar
+        </button>
+        <p id="resultDisplay" class="mt-8 text-xl text-center font-semibold opacity-0 transition-opacity duration-500 text-gray-200">
+            ¡Gira la ruleta para empezar el juego!
+        </p>
+    </div>
+
+    <script>
+        // Array de preguntas y respuestas
+        const preguntas = [
+            {
+                tema: "Ética",
+                pregunta: "¿De dónde proviene la palabra 'ética'?",
+                opciones: ["Latín: Aequilibrium", "Griego: Êthos", "Francés: Moralité", "Alemán: Tugend"],
+                respuestaCorrecta: 1
+            },
+            {
+                tema: "Historia",
+                pregunta: "¿En qué año entró en vigencia la Ley 10.620 en PBA?",
+                opciones: ["1973", "2000", "2001", "2002"],
+                respuestaCorrecta: 3
+            },
+            {
+                tema: "Principios",
+                pregunta: "¿Cuál de estos NO es un principio ético según la presentación?",
+                opciones: ["Veracidad", "Justicia", "Solidaridad", "Fidelidad"],
+                respuestaCorrecta: 2
+            },
+            {
+                tema: "Obligaciones",
+                pregunta: "Según el código, ¿qué está prohibido?",
+                opciones: ["Capacitación continua", "Resguardar información", "Manipular información", "Actuar con independencia"],
+                respuestaCorrecta: 2
+            },
+            {
+                tema: "Valores",
+                pregunta: "¿Qué valor implica decidir con sabiduría?",
+                opciones: ["Humildad", "Prudencia", "Objetividad", "Solidaridad"],
+                respuestaCorrecta: 1
+            },
+            {
+                tema: "Sanciones",
+                pregunta: "¿Qué sanción corresponde a una falta más grave?",
+                opciones: ["Amonestación", "Multa", "Suspensión de matrícula", "Cancelación de matrícula"],
+                respuestaCorrecta: 3
+            },
+            {
+                tema: "Tribunal",
+                pregunta: "¿Qué función cumple el Tribunal de Ética?",
+                opciones: ["Otorgar matrículas", "Investigar y sancionar faltas", "Dar capacitaciones", "Resolver casos penales"],
+                respuestaCorrecta: 1
+            },
+            {
+                tema: "Cronología",
+                pregunta: "¿Cuál fue el primer paso en la regulación de la profesión?",
+                opciones: ["Ley 20.488", "Código Unificado", "Ley 10.620", "Ninguna de las anteriores"],
+                respuestaCorrecta: 0
+            },
+            {
+                tema: "Incompatibilidad",
+                pregunta: "¿A quiénes aplican las incompatibilidades según el código?",
+                opciones: ["Solo a los contadores públicos", "A todos los profesionales de las ciencias económicas", "Únicamente a los directores de empresas", "A los profesionales y sus familiares directos"],
+                respuestaCorrecta: 1
+            }
+        ];
+
+        // Crear una copia de las preguntas para poder eliminarlas a medida que se usan
+        let preguntasDisponibles = [...preguntas];
+
+        // Obtener los elementos del DOM
+        const canvas = document.getElementById('ruletaCanvas');
+        const ctx = canvas.getContext('2d');
+        const spinButton = document.getElementById('spinButton');
+        const resultDisplay = document.getElementById('resultDisplay');
+        const quizSection = document.getElementById('quiz-section');
+        const questionText = document.getElementById('question-text');
+        const answersContainer = document.getElementById('answers-container');
+
+        const totalPreguntas = preguntas.length;
+        const anguloSeccion = (2 * Math.PI) / totalPreguntas;
+
+        // Cargar los sonidos
+        const bgMusic = new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3');
+        const spinSound = new Audio('https://cdn.pixabay.com/audio/2022/05/27/spinning-roulette-111162.mp3');
+        const correctSound = new Audio('https://cdn.pixabay.com/audio/2022/03/10/ping-31460.mp3');
+        const incorrectSound = new Audio('https://cdn.pixabay.com/audio/2022/03/15/incorrect-33152.mp3');
+
+        // Variable para controlar si la ruleta está girando
+        let isSpinning = false;
+        // Variable para controlar si el usuario ya interactuó con la página
+        let hasInteracted = false;
+
+        // Función para dibujar la ruleta con los temas
+        function drawRuleta() {
+            let inicioAngulo = 0;
+            preguntas.forEach((pregunta, i) => {
+                const color = ["#db2777", "#c026d3", "#6d28d9", "#4338ca", "#a587d1", "#7e22ce", "#8b5cf6", "#db2777", "#c026d3"][i % 9];
+                
+                ctx.beginPath();
+                ctx.fillStyle = color;
+                ctx.moveTo(canvas.width / 2, canvas.height / 2);
+                ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width / 2, inicioAngulo, inicioAngulo + anguloSeccion);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.save();
+                ctx.fillStyle = 'white';
+                ctx.font = '14px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(inicioAngulo + anguloSeccion / 2);
+                ctx.fillText(pregunta.tema, canvas.width / 3, 0);
+                ctx.restore();
+
+                inicioAngulo += anguloSeccion;
+            });
+        }
+
+        // Se dibuja la ruleta al cargar la página
+        window.onload = function () {
+            drawRuleta();
+        };
+
+        // Función para manejar el giro
+        function handleSpin() {
+            if (isSpinning) return;
+            
+            // Iniciar la música de fondo solo en la primera interacción
+            if (!hasInteracted) {
+                bgMusic.loop = true;
+                bgMusic.volume = 0.5;
+                bgMusic.play().catch(e => console.log("Audio playback failed:", e));
+                hasInteracted = true;
+            }
+            
+            // Pausar y reiniciar los sonidos para evitar superposiciones
+            correctSound.pause();
+            correctSound.currentTime = 0;
+            incorrectSound.pause();
+            incorrectSound.currentTime = 0;
+            spinSound.pause();
+            spinSound.currentTime = 0;
+
+            // Reiniciar preguntas si todas han sido usadas
+            if (preguntasDisponibles.length === 0) {
+                preguntasDisponibles = [...preguntas];
+                resultDisplay.textContent = '¡Todas las preguntas usadas! Ruleta reiniciada.';
+                resultDisplay.classList.remove('opacity-0');
+            }
+
+            isSpinning = true;
+            spinButton.disabled = true;
+            resultDisplay.classList.add('opacity-0');
+            quizSection.classList.add('hidden');
+            
+            // Reproducir sonido de giro
+            spinSound.play();
+            
+            // Elegir una pregunta aleatoria de las disponibles
+            const randomIndex = Math.floor(Math.random() * preguntasDisponibles.length);
+            const preguntaSeleccionada = preguntasDisponibles[randomIndex];
+            
+            // Eliminar la pregunta de la lista de disponibles
+            preguntasDisponibles.splice(randomIndex, 1);
+
+            // Calcular el ángulo de destino para que el marcador apunte a la sección de la pregunta
+            const indexEnOriginal = preguntas.findIndex(p => p.pregunta === preguntaSeleccionada.pregunta);
+            const targetAngle = (2 * Math.PI) * 5 + (2 * Math.PI - (indexEnOriginal * anguloSeccion + anguloSeccion / 2));
+            
+            // Usar una animación CSS para un giro suave
+            canvas.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)';
+            canvas.style.transform = `rotate(${targetAngle}rad)`;
+
+            // Después de que la animación termine, mostrar la pregunta
+            setTimeout(() => {
+                spinSound.pause();
+                displayQuestion(preguntaSeleccionada);
+                // Reiniciar la transformación de la ruleta para el siguiente giro
+                canvas.style.transition = 'none';
+                canvas.style.transform = `rotate(${targetAngle % (2 * Math.PI)}rad)`;
+            }, 4000); // 4 segundos es la duración de la animación
+        }
+
+        // Función para mostrar la pregunta y las opciones
+        function displayQuestion(pregunta) {
+            questionText.textContent = pregunta.pregunta;
+            answersContainer.innerHTML = '';
+            
+            pregunta.opciones.forEach((opcion, index) => {
+                const button = document.createElement('button');
+                button.textContent = opcion;
+                button.classList.add('answer-button');
+                button.addEventListener('click', () => checkAnswer(index, pregunta.respuestaCorrecta, button));
+                answersContainer.appendChild(button);
+            });
+
+            quizSection.classList.remove('hidden');
+            setTimeout(() => quizSection.style.opacity = '1', 10);
+        }
+
+        // Función para verificar la respuesta
+        function checkAnswer(selectedIndex, correctAnswerIndex, selectedButton) {
+            const buttons = answersContainer.querySelectorAll('button');
+            buttons.forEach(btn => btn.disabled = true); // Deshabilitar botones para evitar múltiples clics
+
+            if (selectedIndex === correctAnswerIndex) {
+                selectedButton.classList.add('correct');
+                resultDisplay.textContent = '¡Respuesta correcta! Muy bien.';
+                correctSound.play(); // Reproducir sonido de respuesta correcta
+            } else {
+                selectedButton.classList.add('incorrect');
+                buttons[correctAnswerIndex].classList.add('correct');
+                resultDisplay.textContent = 'Respuesta incorrecta. La correcta era la marcada en verde.';
+                incorrectSound.play(); // Reproducir sonido de respuesta incorrecta
+            }
+
+            resultDisplay.classList.remove('opacity-0');
+            isSpinning = false; // Permitir el siguiente giro
+            spinButton.disabled = false;
+        }
+
+        // Asignar el evento al botón
+        spinButton.addEventListener('click', handleSpin);
+
+    </script>
+</body>
+</html>
+
+
+
